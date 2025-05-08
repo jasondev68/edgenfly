@@ -116,15 +116,15 @@
       backgroundMusic.loop = true;
       backgroundMusic.volume = 0.5;
 
-      // New: Load background.png image
+      // Updated: Fixed asset paths
       const backgroundImage = new Image();
-      backgroundImage.src = "public/assets/background.png";
+      backgroundImage.src = "assets/background.png";
 
       const birdImage = new Image();
-      birdImage.src = "public/assets/logoedge.png";
+      birdImage.src = "assets/logoedge.png";
 
       const collectibleImage = new Image();
-      collectibleImage.src = "public/assets/layeredge.png";
+      collectibleImage.src = "assets/layeredge.png";
 
       let bird = {
         x: 50,
@@ -196,14 +196,21 @@
         if (!gameStarted) return;
         ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-        // Existing: Draw solid background
+        // Draw solid background
         ctx.fillStyle = "#333";
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-        // New: Draw background.png in top-left corner (small size)
+        // Draw background.png in top-left corner
         ctx.drawImage(backgroundImage, 100, 10, 200, 100);
 
-        ctx.drawImage(birdImage, bird.x - bird.width / 2, bird.y - bird.height / 2, bird.width, bird.height);
+        // Updated: Add fallback for bird if image fails to load
+        if (birdImage.complete && birdImage.naturalWidth !== 0) {
+          ctx.drawImage(birdImage, bird.x - bird.width / 2, bird.y - bird.height / 2, bird.width, bird.height);
+        } else {
+          // Fallback: Draw a red rectangle if birdImage fails
+          ctx.fillStyle = "red";
+          ctx.fillRect(bird.x - bird.width / 2, bird.y - bird.height / 2, bird.width, bird.height);
+        }
 
         const pipeWidth = canvasWidth * 0.1;
         pipes.forEach((pipe) => {
@@ -215,7 +222,13 @@
         pipes = pipes.filter((pipe) => pipe.x + pipeWidth > 0);
 
         collectibles.forEach((collectible) => {
-          ctx.drawImage(collectibleImage, collectible.x - collectible.width / 2, collectible.y - collectible.height / 2, collectible.width, collectible.height);
+          if (collectibleImage.complete && collectibleImage.naturalWidth !== 0) {
+            ctx.drawImage(collectibleImage, collectible.x - collectible.width / 2, collectible.y - collectible.height / 2, collectible.width, collectible.height);
+          } else {
+            // Fallback: Draw a yellow rectangle if collectibleImage fails
+            ctx.fillStyle = "yellow";
+            ctx.fillRect(collectible.x - collectible.width / 2, collectible.y - collectible.height / 2, collectible.width, collectible.height);
+          }
           collectible.x -= gameSpeed;
         });
         collectibles = collectibles.filter((collectible) => collectible.x + collectible.width / 2 > 0);
