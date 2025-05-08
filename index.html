@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Edge Flyer</title>
+    <script src="https://cdn.jsdelivr.net/npm/@farcade/game-sdk@latest/dist/index.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: #333;
+        overflow: hidden;
+        font-family: Arial, sans-serif;
+        position: relative;
+      }
+      canvas {
+        max-width: 500px;
+        max-height: 800px;
+        width: 100%;
+        height: auto;
+        display: block;
+        background: #222;
+        touch-action: none;
+      }
+      #startScreen,
+      #gameOverScreen {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #fff;
+        text-align: center;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 20px;
+        border-radius: 10px;
+        display: none;
+        z-index: 20;
+      }
+      #startButton,
+      #playAgainButton {
+        margin-top: 20px;
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+        background: #666;
+        border: none;
+        color: #fff;
+        border-radius: 5px;
+        min-width: 44px;
+        min-height: 44px;
+      }
+      #startButton:hover,
+      #playAgainButton:hover {
+        background: #888;
+      }
+      #score {
+        position: absolute;
+        top: 10px;
+        left: 60%;
+        transform: translateX(-50%);
+        color: #fff;
+        font-size: 24px;
+        z-index: 10;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="score">Score: 0</div>
+
+    <div id="startScreen">
+      <h2>Ready to Fly?</h2>
+      <div id="instructions">
+        <p><strong>How to Play</strong></p>
+        <ul>
+          <li>Press the <strong>spacebar</strong> or <strong>click</strong> on the screen (computer)</li>
+          <li><strong>Tap</strong> the screen (mobile device)</li>
+        </ul>
+      </div>
+      <h3>Created by Jason</h3>
+      <button id="startButton">Start</button>
+    </div>
+
+    <div id="gameOverScreen">
+      <h2>Game Over</h2>
+      <p id="finalScore">Score: 0</p>
+      <button id="playAgainButton">Play Again</button>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+      const scoreDisplay = document.getElementById("score");
+      const startScreen = document.getElementById("startScreen");
+      const gameOverScreen = document.getElementById("gameOverScreen");
+      const finalScore = document.getElementById("finalScore");
+      const startButton = document.getElementById("startButton");
+      const playAgainButton = document.getElementById("playAgainButton");
+
+      let canvasWidth, canvasHeight;
+      function resizeCanvas() {
+        canvasWidth = Math.min(window.innerWidth, 500);
+        canvasHeight = canvasWidth * 1.5;
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+      }
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+
+      const backgroundMusic = new Audio("https://lqy3lriiybxcejon.public.blob.vercel-storage.com/7858LJ7djXDW/retro-chiptune-adventure-ew33K2oqmGLVe73DuwaEwVK5yQEcR3.mpeg?qcQ8");
+      backgroundMusic.loop = true;
+      backgroundMusic.volume = 0.5;
+
+      // New: Load background.png image
+      const backgroundImage = new Image();
+      backgroundImage.src = "public/assets/background.png";
+
+      const birdImage = new Image();
+      birdImage.src = "public/assets/logoedge.png";
+
+      const collectibleImage = new Image();
+      collectibleImage.src = "public/assets/layeredge.png";
+
+      let bird = {
+        x: 50,
+        y: canvasHeight / 2,
+        velocity: 0,
+        gravity: 0.5,
+        lift: -7,
+        width: 66,
+        height: 46,
+      };
+      let pipes = [];
+      let score = 0;
+      let gameSpeed = 2;
+      let gameOver = false;
+      let gameStarted = false;
+      let frameCount = 0;
+      let isMuted = false;
+      let particles = [];
+      let collectibles = [];
+
+      function resetGame() {
+        gameOver = false;
+        gameStarted = true;
+        bird.y = canvasHeight / 2;
+        bird.velocity = 0;
+        pipes = [];
+        collectibles = [];
+        score = 0;
+        gameSpeed = 2;
+        frameCount = 0;
+        particles = [];
+        gameOverScreen.style.display = "none";
+        scoreDisplay.textContent = "Score: 0";
+        playBackgroundMusic();
+        draw();
+      }
+
+      function flap() {
+        if (!gameOver && gameStarted) {
+          bird.velocity = bird.lift;
+        }
+      }
+
+      function createParticles(x, y) {
+        for (let i = 0; i < 20; i++) {
+          particles.push({
+            x: x,
+            y: y,
+            radius: Math.random() * 5 + 2,
+            velocityY: Math.random() * -5,
+            opacity: 1,
+          });
+        }
+      }
+
+      function stopBackgroundMusic() {
+        backgroundMusic.pause();
+        backgroundMusic.currentTime = 0;
+      }
+
+      function playBackgroundMusic() {
+        stopBackgroundMusic();
+        if (!isMuted) {
+          backgroundMusic.play();
+        }
+      }
+
+      function draw() {
+        if (!gameStarted) return;
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+        // Existing: Draw solid background
+        ctx.fillStyle = "#333";
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+        // New: Draw background.png in top-left corner (small size)
+        ctx.drawImage(backgroundImage, 100, 10, 200, 100);
+
+        ctx.drawImage(birdImage, bird.x - bird.width / 2, bird.y - bird.height / 2, bird.width, bird.height);
+
+        const pipeWidth = canvasWidth * 0.1;
+        pipes.forEach((pipe) => {
+          ctx.fillStyle = "#666";
+          ctx.fillRect(pipe.x, 0, pipeWidth, pipe.top);
+          ctx.fillRect(pipe.x, pipe.bottom, pipeWidth, canvasHeight - pipe.bottom);
+          pipe.x -= gameSpeed;
+        });
+        pipes = pipes.filter((pipe) => pipe.x + pipeWidth > 0);
+
+        collectibles.forEach((collectible) => {
+          ctx.drawImage(collectibleImage, collectible.x - collectible.width / 2, collectible.y - collectible.height / 2, collectible.width, collectible.height);
+          collectible.x -= gameSpeed;
+        });
+        collectibles = collectibles.filter((collectible) => collectible.x + collectible.width / 2 > 0);
+
+        particles.forEach((particle, index) => {
+          ctx.fillStyle = `rgba(102, 102, 102, ${particle.opacity})`;
+          ctx.beginPath();
+          ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+          ctx.fill();
+          particle.y += particle.velocityY;
+          particle.opacity -= 0.02;
+          particle.velocityY += 0.1;
+          if (particle.opacity <= 0) particles.splice(index, 1);
+        });
+
+        scoreDisplay.textContent = `Score: ${score}`;
+
+        bird.velocity += bird.gravity;
+        bird.y += bird.velocity;
+
+        if (bird.y + bird.height / 2 > canvasHeight || bird.y - bird.height / 2 < 0) {
+          triggerGameOver();
+          return;
+        }
+
+        pipes.forEach((pipe) => {
+          if (bird.x + bird.width / 2 > pipe.x && bird.x - bird.width / 2 < pipe.x + pipeWidth) {
+            if (bird.y - bird.height / 2 < pipe.top || bird.y + bird.height / 2 > pipe.bottom) {
+              console.log("Collision detected!", { birdY: bird.y, pipeTop: pipe.top, pipeBottom: pipe.bottom });
+              triggerGameOver();
+              return;
+            }
+          }
+          if (pipe.x + pipeWidth < bird.x && !pipe.passed) {
+            pipe.passed = true;
+            score++;
+            if (score % 5 === 0) gameSpeed += 0.3;
+          }
+        });
+
+        collectibles.forEach((collectible, index) => {
+          if (
+            bird.x + bird.width / 2 > collectible.x - collectible.width / 2 &&
+            bird.x - bird.width / 2 < collectible.x + collectible.width / 2 &&
+            bird.y + bird.height / 2 > collectible.y - collectible.height / 2 &&
+            bird.y - bird.height / 2 < collectible.y + collectible.height / 2
+          ) {
+            score += 10;
+            collectibles.splice(index, 1);
+            console.log("Collected layeredge! Score +10");
+          }
+        });
+
+        const pipeInterval = Math.round(150 / (gameSpeed / 2));
+        if (frameCount % pipeInterval === 0) {
+          const gap = canvasHeight * 0.3;
+          const minHeight = 50;
+          const maxHeight = canvasHeight - gap - minHeight;
+          const top = Math.random() * maxHeight + minHeight;
+          console.log("New pipe:", { top, bottom: top + gap });
+          pipes.push({ x: canvasWidth, top: top, bottom: top + gap, passed: false });
+
+          if (Math.random() < 0.3) {
+            const collectibleY = top + gap / 2;
+            collectibles.push({
+              x: canvasWidth + pipeWidth / 2,
+              y: collectibleY,
+              width: 40,
+              height: 40,
+            });
+            console.log("New collectible at:", { x: canvasWidth + pipeWidth / 2, y: collectibleY });
+          }
+        }
+
+        frameCount++;
+
+        if (!gameOver) requestAnimationFrame(draw);
+      }
+
+      function triggerGameOver() {
+        gameOver = true;
+        gameStarted = false;
+        createParticles(bird.x, bird.y);
+        finalScore.textContent = `Score: ${score}`;
+        stopBackgroundMusic();
+        gameOverScreen.style.display = "block";
+      }
+
+      function setupInputListeners() {
+        canvas.addEventListener("click", flap);
+        canvas.addEventListener("touchstart", (e) => {
+          e.preventDefault();
+          flap();
+        }, { passive: false });
+        document.addEventListener("keydown", (e) => {
+          if (e.code === "Space") flap();
+        });
+      }
+
+      startButton.addEventListener("click", () => {
+        startScreen.style.display = "none";
+        resetGame();
+        setupInputListeners();
+      });
+
+      playAgainButton.addEventListener("click", () => {
+        resetGame();
+      });
+
+      window.onload = () => {
+        startScreen.style.display = "block";
+      };
+    </script>
+  </body>
+</html>
